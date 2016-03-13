@@ -36,6 +36,7 @@ import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
 import java.lang.ref.WeakReference;
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -88,8 +89,11 @@ public class WatchFaceService extends CanvasWatchFaceService {
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
         Paint mTextPaint;
+        Paint mTextPaint2;
+
         boolean mAmbient;
         Time mTime;
+        Date mDate;
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -126,8 +130,11 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
             mTextPaint = new Paint();
             mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
+            mTextPaint2 = new Paint();
+            mTextPaint2 = createTextPaint(resources.getColor(R.color.digital_text));
 
             mTime = new Time();
+            mDate = new Date();
         }
 
         @Override
@@ -191,8 +198,12 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
             float textSize = resources.getDimension(isRound
                     ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
+            float textSize2 = resources.getDimension(isRound
+                    ? R.dimen.digital_text_size_round_2 : R.dimen.digital_text_size_2);
 
             mTextPaint.setTextSize(textSize);
+            mTextPaint2.setTextSize(textSize2);
+
         }
 
         @Override
@@ -261,7 +272,11 @@ public class WatchFaceService extends CanvasWatchFaceService {
             String text = mAmbient
                     ? String.format("%d:%02d", mTime.hour, mTime.minute)
                     : String.format("%d:%02d:%02d", mTime.hour, mTime.minute, mTime.second);
+            String textDate=!mAmbient
+                    ? String.format("%d.%02d.%02d", mTime.monthDay, mTime.month+1, mTime.year%100)
+                    : String.format("%d.%02d", mTime.monthDay, mTime.month+1);
             canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
+            canvas.drawText(textDate,mXOffset,mYOffset+70, mTextPaint2);
         }
 
         /**
