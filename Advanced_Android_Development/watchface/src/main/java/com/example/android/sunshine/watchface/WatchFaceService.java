@@ -272,11 +272,15 @@ public class WatchFaceService extends CanvasWatchFaceService {
             String text = mAmbient
                     ? String.format("%d:%02d", mTime.hour, mTime.minute)
                     : String.format("%d:%02d:%02d", mTime.hour, mTime.minute, mTime.second);
-            String textDate=!mAmbient
-                    ? String.format("%d.%02d.%02d", mTime.monthDay, mTime.month+1, mTime.year%100)
-                    : String.format("%d.%02d", mTime.monthDay, mTime.month+1);
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
-            canvas.drawText(textDate,mXOffset,mYOffset+70, mTextPaint2);
+            String textDate = !mAmbient
+                    ? String.format("%d.%02d.%02d", mTime.monthDay, mTime.month + 1, mTime.year % 100)
+                    : String.format("%d.%02d", mTime.monthDay, mTime.month + 1);
+            canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset, mTextPaint);
+            canvas.drawText(textDate, bounds.centerX() - (mTextPaint2.measureText(textDate)) / 2, mYOffset + 70, mTextPaint2);
+            if (!mAmbient) {
+                canvas.drawLine(bounds.centerX() - (mTextPaint2.measureText(textDate)) / 4, mYOffset + 90,
+                        mTextPaint2.measureText(textDate)/2 + bounds.centerX() - (mTextPaint2.measureText(textDate)) / 4, mYOffset + 90, mTextPaint2);
+            }
         }
 
         /**
