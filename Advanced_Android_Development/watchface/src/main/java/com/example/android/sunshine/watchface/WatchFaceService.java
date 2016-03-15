@@ -36,7 +36,6 @@ import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
 import java.lang.ref.WeakReference;
-import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -89,11 +88,12 @@ public class WatchFaceService extends CanvasWatchFaceService {
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
         Paint mTextPaint;
-        Paint mTextPaint2;
+        Paint mDatePaint;
+        Paint mDateAmbientPaint;
 
         boolean mAmbient;
         Time mTime;
-        Date mDate;
+        String mdateString;
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -104,6 +104,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
         int mTapCount;
 
         float mXOffset;
+        float mYOffsetAmbient;
         float mYOffset;
 
         /**
@@ -124,17 +125,21 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     .build());
             Resources resources = WatchFaceService.this.getResources();
             mYOffset = resources.getDimension(R.dimen.digital_y_offset);
+            mYOffsetAmbient = resources.getDimension(R.dimen.digital_y_offset_ambient);
 
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(resources.getColor(R.color.background));
 
             mTextPaint = new Paint();
             mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
-            mTextPaint2 = new Paint();
-            mTextPaint2 = createTextPaint(resources.getColor(R.color.digital_text));
+            //mTextPaint.setStrokeWidth(5.0f);
+            mDatePaint = new Paint();
+            mDateAmbientPaint = new Paint();
+            mDateAmbientPaint = createTextPaint(resources.getColor(R.color.digital_text));
+            mDatePaint = createTextPaint(resources.getColor(R.color.watchface_date));
 
             mTime = new Time();
-            mDate = new Date();
+
         }
 
         @Override
@@ -149,6 +154,80 @@ public class WatchFaceService extends CanvasWatchFaceService {
             paint.setTypeface(NORMAL_TYPEFACE);
             paint.setAntiAlias(true);
             return paint;
+        }
+
+        public String getDayWord(int dayNumber){
+            String day="";
+            switch (dayNumber){
+                case 1:
+                    day=getString(R.string.monday);
+                    break;
+                case 2:
+                    day=getString(R.string.tuesday);
+                    break;
+                case 3:
+                    day=getString(R.string.wednesday);
+                    break;
+                case 4:
+                    day=getString(R.string.thursday);
+                    break;
+                case 5:
+                    day=getString(R.string.friday);
+                    break;
+                case 6:
+                    day=getString(R.string.saturday);
+                    break;
+                case 7:
+                    day=getString(R.string.sunday);
+                    break;
+                default:
+                    break;
+            }
+            return day;
+        }
+        public String getMonthWord(int monthNumber){
+            String month="";
+            switch (monthNumber){
+                case 1:
+                    month=getString(R.string.january);
+                    break;
+                case 2:
+                    month=getString(R.string.february);
+                    break;
+                case 3:
+                    month=getString(R.string.march);
+                    break;
+                case 4:
+                    month=getString(R.string.april);
+                    break;
+                case 5:
+                    month=getString(R.string.may);
+                    break;
+                case 6:
+                    month=getString(R.string.june);
+                    break;
+                case 7:
+                    month=getString(R.string.july);
+                    break;
+                case 8:
+                    month=getString(R.string.august);
+                    break;
+                case 9:
+                    month=getString(R.string.september);
+                    break;
+                case 10:
+                    month=getString(R.string.october);
+                    break;
+                case 11:
+                    month=getString(R.string.november);
+                    break;
+                case 12:
+                    month=getString(R.string.december);
+                    break;
+                default:
+                    break;
+            }
+            return month;
         }
 
         @Override
@@ -202,7 +281,9 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     ? R.dimen.digital_text_size_round_2 : R.dimen.digital_text_size_2);
 
             mTextPaint.setTextSize(textSize);
-            mTextPaint2.setTextSize(textSize2);
+            mDatePaint.setTextSize(textSize2);
+            mDateAmbientPaint.setTextSize(textSize2);
+
 
         }
 
@@ -269,17 +350,22 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
             // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
             mTime.setToNow();
-            String text = mAmbient
-                    ? String.format("%d:%02d", mTime.hour, mTime.minute)
-                    : String.format("%d:%02d:%02d", mTime.hour, mTime.minute, mTime.second);
+            String day=getDayWord(mTime.weekDay);
+            String month=getMonthWord(mTime.month);
+            mdateString=day+", "+month+" "+mTime.monthDay+" "+mTime.year;
+            String text = String.format("%d:%02d", mTime.hour, mTime.minute);
             String textDate = !mAmbient
                     ? String.format("%d.%02d.%02d", mTime.monthDay, mTime.month + 1, mTime.year % 100)
                     : String.format("%d.%02d", mTime.monthDay, mTime.month + 1);
-            canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset, mTextPaint);
-            canvas.drawText(textDate, bounds.centerX() - (mTextPaint2.measureText(textDate)) / 2, mYOffset + 70, mTextPaint2);
             if (!mAmbient) {
-                canvas.drawLine(bounds.centerX() - (mTextPaint2.measureText(textDate)) / 4, mYOffset + 90,
-                        mTextPaint2.measureText(textDate)/2 + bounds.centerX() - (mTextPaint2.measureText(textDate)) / 4, mYOffset + 90, mTextPaint2);
+                canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset, mTextPaint);
+                canvas.drawText(mdateString, bounds.centerX() - (mDatePaint.measureText(mdateString)) / 2, mYOffset + 50, mDatePaint);
+                canvas.drawLine(bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90,
+                        mTextPaint.measureText(text)/2 + bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90, mDatePaint);
+            }
+            else{
+                canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffsetAmbient, mTextPaint);
+                canvas.drawText(textDate, bounds.centerX() - (mDatePaint.measureText(textDate)) / 2, mYOffsetAmbient + 70, mDateAmbientPaint);
             }
         }
 
