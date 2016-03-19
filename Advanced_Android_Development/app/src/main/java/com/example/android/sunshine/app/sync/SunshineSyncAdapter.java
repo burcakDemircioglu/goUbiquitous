@@ -36,6 +36,17 @@ import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.Utility;
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.data.FreezableUtils;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataItemBuffer;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.Wearable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -49,6 +60,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 
@@ -87,8 +99,29 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     public static final int LOCATION_STATUS_UNKNOWN = 3;
     public static final int LOCATION_STATUS_INVALID = 4;
 
+    private GoogleApiClient mGoogleApiClient;
+
     public SunshineSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
+        mGoogleApiClient = new GoogleApiClient.Builder(getContext())
+                .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+                    @Override
+                    public void onConnected(Bundle connectionHint) {
+                    }
+
+                    @Override
+                    public void onConnectionSuspended(int cause) {
+                    }
+                })
+                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
+                    @Override
+                    public void onConnectionFailed(ConnectionResult result) {
+                    }
+                })
+                .addApi(Wearable.API)
+                .build();
+        mGoogleApiClient.connect();
+        Log.d("update", "mGoogleApiClient connected");
     }
 
     @Override
@@ -299,6 +332,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
             // now we work exclusively in UTC
             dayTime = new Time();
+            double high=0;
+            double low=0;
 
             for(int i = 0; i < weatherArray.length(); i++) {
                 // These are the values that will be collected.
@@ -308,8 +343,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 double windSpeed;
                 double windDirection;
 
-                double high;
-                double low;
+
 
                 String description;
                 int weatherId;
@@ -364,8 +398,9 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 // delete old data so we don't build up an endless history
                 getContext().getContentResolver().delete(WeatherContract.WeatherEntry.CONTENT_URI,
                         WeatherContract.WeatherEntry.COLUMN_DATE + " <= ?",
-                        new String[] {Long.toString(dayTime.setJulianDay(julianStartDay-1))});
+                        new String[]{Long.toString(dayTime.setJulianDay(julianStartDay-1))});
 
+                updateWatchface(high,low);
                 updateWidgets();
                 updateMuzei();
                 notifyWeather();
@@ -379,6 +414,63 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
             setLocationStatus(getContext(), LOCATION_STATUS_SERVER_INVALID);
         }
     }
+
+    public void updateWatchface(double high, double low){
+
+        if(mGoogleApiClient.isConnected()) {
+            Log.d("mGoogleApiClient", "Connection to wearable exist!");
+            PutDataMapRequest putRequest = PutDataMapRequest.create("/CONFIG");
+            putRequest.getDataMap().putDouble("high", high);
+            putRequest.getDataMap().putDouble("low", low);
+            putRequest.setUrgent();
+
+            Log.e("mGoogleApiClient", Double.toString(putRequest.getDataMap().getDouble("high")) + " " + Double.toString(putRequest.getDataMap().getDouble("low")));
+
+            Wearable.DataApi.putDataItem(mGoogleApiClient, putRequest.asPutDataRequest()).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                @Override
+                public void onResult(DataApi.DataItemResult dataItemResult) {
+                    if (!dataItemResult.getStatus().isSuccess()) {
+                        Log.v("mGoogleApiClient", "data could not be sent");
+                    } else {
+                        Log.v("mGoogleApiClient", "data sent");
+                    }
+                }
+            });
+
+            //Test to retrieve data from DataApi
+
+            Wearable.DataApi.getDataItems(mGoogleApiClient)
+                    .setResultCallback(new ResultCallback<DataItemBuffer>() {
+                        @Override
+                        public void onResult(DataItemBuffer dataItems) {
+                            if (dataItems.getStatus().isSuccess()) {
+                                Log.e("mGoogleApiClient", "dataItems are success");
+
+                                final List<DataItem> dataItemList = FreezableUtils.freezeIterable(dataItems);
+                                dataItems.close();
+                                for (final DataItem dataItem : dataItemList) {
+                                    final Uri dataItemUri = dataItem.getUri();
+                                    Log.e("mGoogleApiClient", dataItemUri.toString());
+
+                                    DataMapItem dataMapItem = DataMapItem.fromDataItem(dataItem);
+                                    DataMap dataMap = dataMapItem.getDataMap();
+                                   // high = dataMap.getDouble("high");
+                                    //invalidate();
+                                    Log.v("mGoogleApiClient", "high: " + Double.toString(dataMap.getDouble("high")));
+                                }
+                            } else {
+                                Log.e("mGoogleApiClient", "dataItems is null");
+                            }
+                        }
+                    });
+
+        }
+        else{
+            Log.e("mGoogleApiClient", "No connection to wearable available!");
+
+        }
+    }
+
 
     private void updateWidgets() {
         Context context = getContext();

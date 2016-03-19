@@ -26,16 +26,35 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.data.FreezableUtils;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.NodeApi;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
+import com.google.android.gms.wearable.Node;
+
+
 import java.lang.ref.WeakReference;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -83,13 +102,15 @@ public class WatchFaceService extends CanvasWatchFaceService {
         }
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine {
+    private class Engine extends CanvasWatchFaceService.Engine implements DataApi.DataListener,
+            GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
         Paint mTextPaint;
         Paint mDatePaint;
         Paint mDateAmbientPaint;
+        Paint mbatteryPaint;
 
         boolean mAmbient;
         Time mTime;
@@ -106,12 +127,24 @@ public class WatchFaceService extends CanvasWatchFaceService {
         float mXOffset;
         float mYOffsetAmbient;
         float mYOffset;
+        double high=10;
+        double low=0;
+        String nodeId;
+
 
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
          */
         boolean mLowBitAmbient;
+
+        GoogleApiClient mGoogleApiClient = new GoogleApiClient.Builder(WatchFaceService.this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(Wearable.API)
+                .build();
+
+
 
         @Override
         public void onCreate(SurfaceHolder holder) {
@@ -135,12 +168,16 @@ public class WatchFaceService extends CanvasWatchFaceService {
             //mTextPaint.setStrokeWidth(5.0f);
             mDatePaint = new Paint();
             mDateAmbientPaint = new Paint();
+            mbatteryPaint = new Paint();
+
             mDateAmbientPaint = createTextPaint(resources.getColor(R.color.digital_text));
             mDatePaint = createTextPaint(resources.getColor(R.color.watchface_date));
+            mbatteryPaint = createTextPaint(resources.getColor(R.color.watchface_date));
 
             mTime = new Time();
-
         }
+
+
 
         @Override
         public void onDestroy() {
@@ -235,12 +272,17 @@ public class WatchFaceService extends CanvasWatchFaceService {
             super.onVisibilityChanged(visible);
 
             if (visible) {
+                mGoogleApiClient.connect();
                 registerReceiver();
 
                 // Update time zone in case it changed while we weren't visible.
                 mTime.clear(TimeZone.getDefault().getID());
                 mTime.setToNow();
             } else {
+                if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+                    //Wearable.DataApi.removeListener(mGoogleApiClient, this);
+                    mGoogleApiClient.disconnect();
+                }
                 unregisterReceiver();
             }
 
@@ -279,10 +321,12 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
             float textSize2 = resources.getDimension(isRound
                     ? R.dimen.digital_text_size_round_2 : R.dimen.digital_text_size_2);
-
+            float textSize3 = resources.getDimension(isRound
+                    ? R.dimen.digital_text_size_round_3 : R.dimen.digital_text_size_3);
             mTextPaint.setTextSize(textSize);
             mDatePaint.setTextSize(textSize2);
             mDateAmbientPaint.setTextSize(textSize2);
+            mbatteryPaint.setTextSize(textSize3);
 
 
         }
@@ -341,6 +385,13 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
+            //SharedPreferences sm = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+            //String deneme = sm.getString("string_deneme", "hello");
+            //Log.e("deneme", deneme);
+            IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+            Intent batteryStatus =  getApplicationContext().registerReceiver(null, iFilter);
+            int batteryLevel = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+
             // Draw the background.
             if (isInAmbientMode()) {
                 canvas.drawColor(Color.BLACK);
@@ -357,16 +408,26 @@ public class WatchFaceService extends CanvasWatchFaceService {
             String textDate = !mAmbient
                     ? String.format("%d.%02d.%02d", mTime.monthDay, mTime.month + 1, mTime.year % 100)
                     : String.format("%d.%02d", mTime.monthDay, mTime.month + 1);
+            String highString=Integer.toString((int)high)+(char) 0x00B0 ;
+            String lowString=Integer.toString((int)low)+(char) 0x00B0 ;
+            String battery=Integer.toString(batteryLevel)+"%";
             if (!mAmbient) {
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset, mTextPaint);
                 canvas.drawText(mdateString, bounds.centerX() - (mDatePaint.measureText(mdateString)) / 2, mYOffset + 50, mDatePaint);
                 canvas.drawLine(bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90,
-                        mTextPaint.measureText(text)/2 + bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90, mDatePaint);
+                        mTextPaint.measureText(text) / 2 + bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90, mDatePaint);
+                canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mDatePaint);
+                canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+20, mYOffset + 150, mDatePaint);
+                canvas.drawText(battery,bounds.centerX() - mbatteryPaint.measureText(battery)/2, mYOffset/3, mbatteryPaint);
             }
             else{
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffsetAmbient, mTextPaint);
                 canvas.drawText(textDate, bounds.centerX() - (mDatePaint.measureText(textDate)) / 2, mYOffsetAmbient + 70, mDateAmbientPaint);
             }
+
+
+
+
         }
 
         /**
@@ -398,6 +459,144 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 long delayMs = INTERACTIVE_UPDATE_RATE_MS
                         - (timeMs % INTERACTIVE_UPDATE_RATE_MS);
                 mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
+            }
+        }
+
+        @Override
+        public void onDataChanged(DataEventBuffer dataEvents) {
+            Log.d("mGoogleApiClient", "dataChanged!");
+            final List<DataEvent> events = FreezableUtils.freezeIterable(dataEvents);
+            for(DataEvent event : events) {
+                final Uri uri = event.getDataItem().getUri();
+                final String path = uri!=null ? uri.getPath() : null;
+                if("/CONFIG".equals(path)) {
+                    final DataMap map = DataMapItem.fromDataItem(event.getDataItem()).getDataMap();
+                    // read your values from map:
+                    high = map.getDouble("high");
+                    low = map.getDouble("low");
+                    String stringExample = "deneme";
+                    //map.getString("string_example");
+                    /*
+                    SharedPreferences sm = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                    SharedPreferences.Editor editor=sm.edit();
+                    editor.putString("string_deneme", stringExample);
+                    editor.commit();
+                    */
+                    Log.e("mGoogleApiClient", Double.toString(high)+" "+Double.toString(low)+" "+stringExample);
+                }
+
+
+            }
+        }
+
+        @Override  // GoogleApiClient.ConnectionCallbacks
+        public void onConnected(Bundle connectionHint) {
+            if (Log.isLoggable("mGoogleApiClient", Log.DEBUG)) {
+                Log.d("mGoogleApiClient", "onConnected: " + connectionHint);
+            }
+/*          //Test to send data to DataApi
+            PutDataMapRequest putRequest = PutDataMapRequest.create("/CONFIG");
+            putRequest.getDataMap().putLong("Time", System.currentTimeMillis());
+            putRequest.getDataMap().putDouble("high", 30);
+            putRequest.getDataMap().putDouble("low", low);
+            putRequest.getDataMap().putString("string_example", "MyWatchface");
+            putRequest.setUrgent();
+
+            Log.e("mGoogleApiClient", Double.toString(putRequest.getDataMap().getDouble("high")) + " " + Double.toString(putRequest.getDataMap().getDouble("low")));
+
+            Wearable.DataApi.putDataItem(mGoogleApiClient, putRequest.asPutDataRequest()).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                @Override
+                public void onResult(DataApi.DataItemResult dataItemResult) {
+                    if (!dataItemResult.getStatus().isSuccess()) {
+                        Log.v("mGoogleApiClient", "data could not be sent");
+                    } else {
+                        Log.v("mGoogleApiClient", "data sent");
+                    }
+                }
+            });
+*/
+            Wearable.DataApi.addListener(mGoogleApiClient, this);
+            /*
+            Wearable.DataApi.getDataItems(mGoogleApiClient)
+                    .setResultCallback(new ResultCallback<DataItemBuffer>() {
+                        @Override
+                        public void onResult(DataItemBuffer dataItems) {
+                            if (dataItems.getStatus().isSuccess()) {
+                                Log.e("mGoogleApiClient", "dataItems are success");
+
+                                final List<DataItem> dataItemList = FreezableUtils.freezeIterable(dataItems);
+                                dataItems.close();
+                                for (final DataItem dataItem : dataItemList) {
+                                    final Uri dataItemUri = dataItem.getUri();
+                                    Log.e("mGoogleApiClient", dataItemUri.toString());
+
+                                    DataMapItem dataMapItem = DataMapItem.fromDataItem(dataItem);
+                                    DataMap dataMap = dataMapItem.getDataMap();
+                                    high = dataMap.getDouble("high");
+                                    invalidate();
+                                    Log.v("mGoogleApiClient", "high: " + Double.toString(high));
+                                }
+                            } else {
+                                Log.e("mGoogleApiClient", "dataItems is null");
+                            }
+                        }
+                    });
+                    */
+
+
+            Wearable.NodeApi.getConnectedNodes(mGoogleApiClient)
+                    .setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
+                        @Override
+                        public void onResult(NodeApi.GetConnectedNodesResult result) {
+                            if(result.getNodes()==null){
+                                Log.d("mGoogleApiClient", "Node is not connected!");
+
+                            }
+                            for(Node node: result.getNodes()){
+                                nodeId=node.getId();
+                                Log.d("mGoogleApiClient", "Node " + node.getId() + " is connected");
+                            }
+                        }
+                    });
+
+            Uri uri=new Uri.Builder().authority(nodeId).scheme(PutDataRequest.WEAR_URI_SCHEME).path("/CONFIG").build();
+            Log.e("mGoogleApiClient", uri.toString());
+
+            Wearable.DataApi.getDataItem(mGoogleApiClient,uri).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                @Override
+                public void onResult(DataApi.DataItemResult dataItemResult) {
+                    if (dataItemResult.getStatus().isSuccess()) {
+                        Log.e("mGoogleApiClient", "dataItems are success");
+                        if (dataItemResult.getDataItem() != null) {
+                            DataMap dataMap = DataMapItem.fromDataItem(dataItemResult.getDataItem()).getDataMap();
+
+                            final Uri dataItemUri = dataItemResult.getDataItem().getUri();
+
+                            high = dataMap.getDouble("high");
+                            invalidate();
+                        } else {
+                            Log.e("mGoogleApiClient", "dataItem is null");
+
+                        }
+                        Log.v("mGoogleApiClient", "high: " + Double.toString(high));
+                    } else {
+                        Log.e("mGoogleApiClient", "dataItems is null");
+                    }
+                }
+            });
+        }
+
+        @Override  // GoogleApiClient.ConnectionCallbacks
+        public void onConnectionSuspended(int cause) {
+            if (Log.isLoggable("TAG", Log.DEBUG)) {
+                Log.d("TAG", "onConnectionSuspended: " + cause);
+            }
+        }
+
+        @Override  // GoogleApiClient.OnConnectionFailedListener
+        public void onConnectionFailed(ConnectionResult result) {
+            if (Log.isLoggable("TAG", Log.DEBUG)) {
+                Log.d("TAG", "onConnectionFailed: " + result);
             }
         }
     }

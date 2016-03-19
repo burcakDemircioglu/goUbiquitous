@@ -4,6 +4,8 @@
     <dimen name="digital_text_size_round">45dp</dimen>
     <dimen name="digital_text_size_2">20dp</dimen>
     <dimen name="digital_text_size_round_2">20dp</dimen>
+    <dimen name="digital_text_size_3">5dp</dimen>
+    <dimen name="digital_text_size_round_3">10dp</dimen>
     <dimen name="digital_x_offset">15dp</dimen>
     <dimen name="digital_x_offset_round">35dp</dimen>
     <dimen name="digital_y_offset">80dp</dimen>
