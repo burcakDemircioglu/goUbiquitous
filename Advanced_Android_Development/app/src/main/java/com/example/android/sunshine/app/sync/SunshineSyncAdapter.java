@@ -46,6 +46,7 @@ import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
 import org.json.JSONArray;
@@ -103,6 +104,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
     public SunshineSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
+
         mGoogleApiClient = new GoogleApiClient.Builder(getContext())
                 .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
                     @Override
@@ -426,16 +428,18 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
             Log.e("mGoogleApiClient", Double.toString(putRequest.getDataMap().getDouble("high")) + " " + Double.toString(putRequest.getDataMap().getDouble("low")));
 
-            Wearable.DataApi.putDataItem(mGoogleApiClient, putRequest.asPutDataRequest()).setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
-                @Override
-                public void onResult(DataApi.DataItemResult dataItemResult) {
-                    if (!dataItemResult.getStatus().isSuccess()) {
-                        Log.v("mGoogleApiClient", "data could not be sent");
-                    } else {
-                        Log.v("mGoogleApiClient", "data sent");
-                    }
-                }
-            });
+            PutDataRequest request=putRequest.asPutDataRequest();
+            Wearable.DataApi.putDataItem(mGoogleApiClient, request)
+                    .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                        @Override
+                        public void onResult(DataApi.DataItemResult dataItemResult) {
+                            if (!dataItemResult.getStatus().isSuccess()) {
+                                Log.v("mGoogleApiClient", "data could not be sent");
+                            } else {
+                                Log.v("mGoogleApiClient", "data sent");
+                            }
+                        }
+                    });
 
             //Test to retrieve data from DataApi
 
