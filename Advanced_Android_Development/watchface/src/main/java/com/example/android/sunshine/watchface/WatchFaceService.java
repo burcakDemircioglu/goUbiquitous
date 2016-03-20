@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -30,11 +31,9 @@ import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.v4.content.LocalBroadcastManager;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
-import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
@@ -86,7 +85,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
         }
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine {
+    private class Engine extends CanvasWatchFaceService.Engine{
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
@@ -110,36 +109,17 @@ public class WatchFaceService extends CanvasWatchFaceService {
         float mXOffset;
         float mYOffsetAmbient;
         float mYOffset;
-        String high="10";
-        double low=0;
-
-
+        String high="30";
+        String low="10";
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
          */
         boolean mLowBitAmbient;
 
-        public class MessageReceiver extends BroadcastReceiver {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String message = intent.getStringExtra("message");
-                Log.v("myTag", "Main activity received message: " + message);
-                high=message;
-                invalidate();
-                // Display message in UI
-
-            }
-        }
-
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
-
-            IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
-            MessageReceiver messageReceiver = new MessageReceiver();
-            LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(messageReceiver, messageFilter);
-
 
             setWatchFaceStyle(new WatchFaceStyle.Builder(WatchFaceService.this)
                     .setCardPeekMode(WatchFaceStyle.PEEK_MODE_VARIABLE)
@@ -167,8 +147,6 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
             mTime = new Time();
         }
-
-
 
         @Override
         public void onDestroy() {
@@ -264,7 +242,6 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
             if (visible) {
                 registerReceiver();
-
                 // Update time zone in case it changed while we weren't visible.
                 mTime.clear(TimeZone.getDefault().getID());
                 mTime.setToNow();
@@ -371,9 +348,11 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-            //SharedPreferences sm = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-            //String deneme = sm.getString("string_deneme", "hello");
-            //Log.e("deneme", deneme);
+
+            SharedPreferences sharedpreferences = getSharedPreferences("MyPREFERENCES", Context.MODE_PRIVATE);
+            high = sharedpreferences.getString("high", "E");
+            low = sharedpreferences.getString("low", "E");
+
             IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
             Intent batteryStatus =  getApplicationContext().registerReceiver(null, iFilter);
             int batteryLevel = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
@@ -395,7 +374,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     ? String.format("%d.%02d.%02d", mTime.monthDay, mTime.month + 1, mTime.year % 100)
                     : String.format("%d.%02d", mTime.monthDay, mTime.month + 1);
             String highString=high+(char) 0x00B0 ;
-            String lowString=Integer.toString((int)low)+(char) 0x00B0 ;
+            String lowString=low+(char) 0x00B0 ;
             String battery=Integer.toString(batteryLevel)+"%";
             if (!mAmbient) {
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset, mTextPaint);
@@ -403,7 +382,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 canvas.drawLine(bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90,
                         mTextPaint.measureText(text) / 2 + bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90, mDatePaint);
                 canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mDatePaint);
-                canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+20, mYOffset + 150, mDatePaint);
+                canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+15, mYOffset + 150, mDatePaint);
                 canvas.drawText(battery,bounds.centerX() - mbatteryPaint.measureText(battery)/2, mYOffset/3, mbatteryPaint);
             }
             else{
@@ -447,5 +426,8 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
             }
         }
+
+
+
     }
 }

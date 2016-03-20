@@ -39,12 +39,7 @@ import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.common.data.FreezableUtils;
 import com.google.android.gms.wearable.DataApi;
-import com.google.android.gms.wearable.DataItem;
-import com.google.android.gms.wearable.DataItemBuffer;
-import com.google.android.gms.wearable.DataMap;
-import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
@@ -61,7 +56,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 
@@ -123,7 +117,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 .addApi(Wearable.API)
                 .build();
         mGoogleApiClient.connect();
-        Log.d("update", "mGoogleApiClient connected");
     }
 
     @Override
@@ -373,7 +366,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 JSONObject temperatureObject = dayForecast.getJSONObject(OWM_TEMPERATURE);
                 high = temperatureObject.getDouble(OWM_MAX);
                 low = temperatureObject.getDouble(OWM_MIN);
-
                 ContentValues weatherValues = new ContentValues();
 
                 weatherValues.put(WeatherContract.WeatherEntry.COLUMN_LOC_KEY, locationId);
@@ -402,7 +394,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                         WeatherContract.WeatherEntry.COLUMN_DATE + " <= ?",
                         new String[]{Long.toString(dayTime.setJulianDay(julianStartDay-1))});
 
-                updateWatchface(high,low);
+                updateWatchface();
                 updateWidgets();
                 updateMuzei();
                 notifyWeather();
@@ -417,16 +409,53 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         }
     }
 
-    public void updateWatchface(double high, double low){
+    public void updateWatchface(){
+        Context context = getContext();
+        String locationQuery = Utility.getPreferredLocation(context);
+        Uri weatherUri = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationQuery, System.currentTimeMillis());
 
+        // we'll query our contentProvider, as always
+        Cursor cursor = context.getContentResolver().query(weatherUri, NOTIFY_WEATHER_PROJECTION, null, null, null);
+        double high=0 ;
+        double low=0 ;
+        int iconId;
+
+        if (cursor.moveToFirst()) {
+            int weatherId = cursor.getInt(INDEX_WEATHER_ID);
+            high = cursor.getDouble(INDEX_MAX_TEMP);
+            low = cursor.getDouble(INDEX_MIN_TEMP);
+            iconId = Utility.getIconResourceForWeatherCondition(weatherId);
+            Resources resources = context.getResources();
+            int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
+            String artUrl = Utility.getArtUrlForWeatherCondition(context, weatherId);
+
+            int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                    ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
+                    : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
+            int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                    ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
+                    : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
+
+            Bitmap largeIcon;
+            try {
+                largeIcon = Glide.with(context)
+                        .load(artUrl)
+                        .asBitmap()
+                        .error(artResourceId)
+                        .fitCenter()
+                        .into(largeIconWidth, largeIconHeight).get();
+            } catch (InterruptedException | ExecutionException e) {
+                Log.e(LOG_TAG, "Error retrieving large icon from " + artUrl, e);
+                largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
+            }
+
+        }
         if(mGoogleApiClient.isConnected()) {
             Log.d("mGoogleApiClient", "Connection to wearable exist!");
             PutDataMapRequest putRequest = PutDataMapRequest.create("/CONFIG");
             putRequest.getDataMap().putDouble("high", high);
             putRequest.getDataMap().putDouble("low", low);
             putRequest.setUrgent();
-
-            Log.e("mGoogleApiClient", Double.toString(putRequest.getDataMap().getDouble("high")) + " " + Double.toString(putRequest.getDataMap().getDouble("low")));
 
             PutDataRequest request=putRequest.asPutDataRequest();
             Wearable.DataApi.putDataItem(mGoogleApiClient, request)
@@ -440,34 +469,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                             }
                         }
                     });
-
-            //Test to retrieve data from DataApi
-
-            Wearable.DataApi.getDataItems(mGoogleApiClient)
-                    .setResultCallback(new ResultCallback<DataItemBuffer>() {
-                        @Override
-                        public void onResult(DataItemBuffer dataItems) {
-                            if (dataItems.getStatus().isSuccess()) {
-                                Log.e("mGoogleApiClient", "dataItems are success");
-
-                                final List<DataItem> dataItemList = FreezableUtils.freezeIterable(dataItems);
-                                dataItems.close();
-                                for (final DataItem dataItem : dataItemList) {
-                                    final Uri dataItemUri = dataItem.getUri();
-                                    Log.e("mGoogleApiClient", dataItemUri.toString());
-
-                                    DataMapItem dataMapItem = DataMapItem.fromDataItem(dataItem);
-                                    DataMap dataMap = dataMapItem.getDataMap();
-                                   // high = dataMap.getDouble("high");
-                                    //invalidate();
-                                    Log.v("mGoogleApiClient", "high: " + Double.toString(dataMap.getDouble("high")));
-                                }
-                            } else {
-                                Log.e("mGoogleApiClient", "dataItems is null");
-                            }
-                        }
-                    });
-
         }
         else{
             Log.e("mGoogleApiClient", "No connection to wearable available!");
