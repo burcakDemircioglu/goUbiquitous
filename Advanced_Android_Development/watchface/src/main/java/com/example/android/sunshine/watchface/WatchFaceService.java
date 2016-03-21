@@ -20,8 +20,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -34,10 +35,24 @@ import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
+import android.util.Base64;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.data.FreezableUtils;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.Wearable;
+
 import java.lang.ref.WeakReference;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -85,7 +100,9 @@ public class WatchFaceService extends CanvasWatchFaceService {
         }
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine{
+    private class Engine extends CanvasWatchFaceService.Engine implements DataApi.DataListener,
+            GoogleApiClient.ConnectionCallbacks,
+            GoogleApiClient.OnConnectionFailedListener{
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
@@ -116,10 +133,16 @@ public class WatchFaceService extends CanvasWatchFaceService {
          * disable anti-aliasing in ambient mode.
          */
         boolean mLowBitAmbient;
-
+        private GoogleApiClient mGoogleApiClient;
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
+            mGoogleApiClient = new GoogleApiClient.Builder(getApplication())
+                    .addApi(Wearable.API)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .build();
+            mGoogleApiClient.connect();
 
             setWatchFaceStyle(new WatchFaceStyle.Builder(WatchFaceService.this)
                     .setCardPeekMode(WatchFaceStyle.PEEK_MODE_VARIABLE)
@@ -149,8 +172,79 @@ public class WatchFaceService extends CanvasWatchFaceService {
         }
 
         @Override
+        public void onConnected(Bundle bundle) {
+            Wearable.DataApi.addListener(mGoogleApiClient, this);
+        }
+
+        @Override
+        public void onDataChanged(DataEventBuffer dataEvents) {
+            final List<DataEvent> events = FreezableUtils.freezeIterable(dataEvents);
+            for(DataEvent event : events) {
+                DataMap map = DataMapItem.fromDataItem(event.getDataItem()).getDataMap();
+                String path = event.getDataItem().getUri().getPath();
+                if(path.equals("/CONFIG")) {
+                    high = Integer.toString((int)map.getDouble("high"));
+                    low = Integer.toString((int)map.getDouble("low"));
+                    Asset asset = map.getAsset("weatherImage");
+
+                    //Bitmap bitmap = loadBitmapFromAsset(asset);
+
+                    //String encoded=BitmapToString(bitmap);
+
+                    Log.e("myTag", "Data changed!: "+high+" "+low);
+                    invalidate();
+                }
+
+
+            }
+        }
+        /*
+        public Bitmap loadBitmapFromAsset(Asset asset) {
+
+        mGoogleApiClient.connect();
+        if (asset == null) {
+            throw new IllegalArgumentException("Asset must be non-null");
+        }
+        long TIMEOUT_MS=10000;
+        ConnectionResult result =
+                mGoogleApiClient.blockingConnect(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        if (!result.isSuccess()) {
+            return null;
+        }
+        // convert asset into a file descriptor and block until it's ready
+        InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                mGoogleApiClient, asset).await().getInputStream();
+        mGoogleApiClient.disconnect();
+
+        if (assetInputStream == null) {
+            Log.w("myTag", "Requested an unknown Asset.");
+            return null;
+        }
+        // decode the stream into a bitmap
+        return BitmapFactory.decodeStream(assetInputStream);
+    }
+/*
+    public String BitmapToString(Bitmap bitmap){
+        ByteArrayOutputStream baos=new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+        byte[] b=baos.toByteArray();
+        String encoded= Base64.encodeToString(b, Base64.DEFAULT);
+        return encoded;
+    }
+*/
+        @Override
+        public void onConnectionFailed(ConnectionResult result) {
+            Log.d("myTag", "onConnectionFailed: " + result);
+        }
+        @Override
+        public void onConnectionSuspended(int cause) {
+            Log.d("myTag", "onConnectionSuspended: " + cause);
+        }
+        @Override
         public void onDestroy() {
             mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            mGoogleApiClient.disconnect();
             super.onDestroy();
         }
 
@@ -245,8 +339,12 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 // Update time zone in case it changed while we weren't visible.
                 mTime.clear(TimeZone.getDefault().getID());
                 mTime.setToNow();
+                mGoogleApiClient.connect();
+
             } else {
                 unregisterReceiver();
+                Wearable.DataApi.removeListener(mGoogleApiClient, this);
+                mGoogleApiClient.disconnect();
             }
 
             // Whether the timer should be running depends on whether we're visible (as well as
@@ -346,12 +444,14 @@ public class WatchFaceService extends CanvasWatchFaceService {
             invalidate();
         }
 
+        public Bitmap StringToBitmap(String encoded){
+            byte[] imageAsBytes = Base64.decode(encoded.getBytes(), Base64.DEFAULT);
+            Bitmap bitmap= BitmapFactory.decodeByteArray(imageAsBytes, 0, imageAsBytes.length);
+            return bitmap;
+        }
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
 
-            SharedPreferences sharedpreferences = getSharedPreferences("MyPREFERENCES", Context.MODE_PRIVATE);
-            high = sharedpreferences.getString("high", "E");
-            low = sharedpreferences.getString("low", "E");
 
             IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
             Intent batteryStatus =  getApplicationContext().registerReceiver(null, iFilter);
@@ -383,7 +483,8 @@ public class WatchFaceService extends CanvasWatchFaceService {
                         mTextPaint.measureText(text) / 2 + bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90, mDatePaint);
                 canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mDatePaint);
                 canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+15, mYOffset + 150, mDatePaint);
-                canvas.drawText(battery,bounds.centerX() - mbatteryPaint.measureText(battery)/2, mYOffset/3, mbatteryPaint);
+                canvas.drawText(battery, bounds.centerX() - mbatteryPaint.measureText(battery) / 2, mYOffset / 3, mbatteryPaint);
+                //canvas.drawBitmap(weatherImage, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset + 150, mDatePaint);
             }
             else{
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffsetAmbient, mTextPaint);

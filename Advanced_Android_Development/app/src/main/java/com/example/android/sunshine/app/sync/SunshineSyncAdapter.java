@@ -39,6 +39,7 @@ import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
@@ -49,6 +50,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -409,34 +411,38 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         }
     }
 
+    private static Asset createAssetFromBitmap(Bitmap bitmap){
+        final ByteArrayOutputStream byteStream=new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG,100,byteStream);
+        return Asset.createFromBytes(byteStream.toByteArray());
+    }
     public void updateWatchface(){
         Context context = getContext();
         String locationQuery = Utility.getPreferredLocation(context);
         Uri weatherUri = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationQuery, System.currentTimeMillis());
 
-        // we'll query our contentProvider, as always
         Cursor cursor = context.getContentResolver().query(weatherUri, NOTIFY_WEATHER_PROJECTION, null, null, null);
-        double high=0 ;
+        double high=0 ;  
         double low=0 ;
         int iconId;
+        Bitmap largeIcon;
+        Resources resources = context.getResources();
+        int artResourceId=0;
+        int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
+                : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
+        int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
+                : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
 
         if (cursor.moveToFirst()) {
             int weatherId = cursor.getInt(INDEX_WEATHER_ID);
             high = cursor.getDouble(INDEX_MAX_TEMP);
             low = cursor.getDouble(INDEX_MIN_TEMP);
             iconId = Utility.getIconResourceForWeatherCondition(weatherId);
-            Resources resources = context.getResources();
-            int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
+            artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
             String artUrl = Utility.getArtUrlForWeatherCondition(context, weatherId);
-
-            int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                    ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
-                    : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-            int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                    ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
-                    : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-
-            Bitmap largeIcon;
+            /*
             try {
                 largeIcon = Glide.with(context)
                         .load(artUrl)
@@ -448,13 +454,19 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 Log.e(LOG_TAG, "Error retrieving large icon from " + artUrl, e);
                 largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
             }
+            */
 
         }
+        largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
+
+        Asset asset = createAssetFromBitmap(largeIcon);
+
         if(mGoogleApiClient.isConnected()) {
             Log.d("mGoogleApiClient", "Connection to wearable exist!");
             PutDataMapRequest putRequest = PutDataMapRequest.create("/CONFIG");
             putRequest.getDataMap().putDouble("high", high);
             putRequest.getDataMap().putDouble("low", low);
+            putRequest.getDataMap().putAsset("weatherImage", asset);
             putRequest.setUrgent();
 
             PutDataRequest request=putRequest.asPutDataRequest();
@@ -475,7 +487,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
         }
     }
-
 
     private void updateWidgets() {
         Context context = getContext();
