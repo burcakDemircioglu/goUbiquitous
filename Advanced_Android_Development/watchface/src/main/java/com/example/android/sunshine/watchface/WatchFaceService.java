@@ -130,7 +130,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
         float mYOffset;
         String high="30";
         String low="10";
-        Bitmap weatherIcon;
+        Bitmap weatherIcon= BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -193,7 +193,6 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     Asset asset = map.getAsset("weatherImage");
                     BitmapWorkerTask task = new BitmapWorkerTask();
                     task.execute(asset);
-                    //Bitmap bitmap = loadBitmapFromAsset(asset);
 
                     Log.e("myTag", "Data changed!: "+high+" "+low);
                     invalidate();
@@ -217,6 +216,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
             protected void onPostExecute(Bitmap bitmap) {
                 if (bitmap != null) {
                     weatherIcon=bitmap;
+                    invalidate();
                 }
             }
             public Bitmap loadBitmapFromAsset(Asset asset) {
@@ -494,7 +494,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mDatePaint);
                 canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+15, mYOffset + 150, mDatePaint);
                 canvas.drawText(battery, bounds.centerX() - mbatteryPaint.measureText(battery) / 2, mYOffset / 3, mbatteryPaint);
-                //canvas.drawBitmap(weatherImage, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset + 150, mDatePaint);
+                canvas.drawBitmap(weatherIcon, bounds.centerX() - (mTextPaint.measureText(text)) / 2-10, mYOffset + 90, mDatePaint);
             }
             else{
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffsetAmbient, mTextPaint);
