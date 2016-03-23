@@ -28,6 +28,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.os.AsyncTask;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -51,6 +52,7 @@ import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
 
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.TimeZone;
@@ -128,12 +130,15 @@ public class WatchFaceService extends CanvasWatchFaceService {
         float mYOffset;
         String high="30";
         String low="10";
+        Bitmap weatherIcon;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
          */
         boolean mLowBitAmbient;
         private GoogleApiClient mGoogleApiClient;
+        private static final long TIMEOUT_MS = 100;
+
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
@@ -184,12 +189,11 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 String path = event.getDataItem().getUri().getPath();
                 if(path.equals("/CONFIG")) {
                     high = Integer.toString((int)map.getDouble("high"));
-                    low = Integer.toString((int)map.getDouble("low"));
+                    low = Integer.toString((int) map.getDouble("low"));
                     Asset asset = map.getAsset("weatherImage");
-
+                    BitmapWorkerTask task = new BitmapWorkerTask();
+                    task.execute(asset);
                     //Bitmap bitmap = loadBitmapFromAsset(asset);
-
-                    //String encoded=BitmapToString(bitmap);
 
                     Log.e("myTag", "Data changed!: "+high+" "+low);
                     invalidate();
@@ -198,40 +202,46 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
             }
         }
-        /*
-        public Bitmap loadBitmapFromAsset(Asset asset) {
+        class BitmapWorkerTask extends AsyncTask<Asset, Void, Bitmap> {
+            private Asset data;
 
-        mGoogleApiClient.connect();
-        if (asset == null) {
-            throw new IllegalArgumentException("Asset must be non-null");
-        }
-        long TIMEOUT_MS=10000;
-        ConnectionResult result =
-                mGoogleApiClient.blockingConnect(TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        if (!result.isSuccess()) {
-            return null;
-        }
-        // convert asset into a file descriptor and block until it's ready
-        InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
-                mGoogleApiClient, asset).await().getInputStream();
-        mGoogleApiClient.disconnect();
+            // Decode image in background.
+            @Override
+            protected Bitmap doInBackground(Asset... params) {
+                data = params[0];
+                return loadBitmapFromAsset(data);
+            }
 
-        if (assetInputStream == null) {
-            Log.w("myTag", "Requested an unknown Asset.");
-            return null;
+            // Once complete, see if ImageView is still around and set bitmap.
+            @Override
+            protected void onPostExecute(Bitmap bitmap) {
+                if (bitmap != null) {
+                    weatherIcon=bitmap;
+                }
+            }
+            public Bitmap loadBitmapFromAsset(Asset asset) {
+                if (asset == null) {
+                    throw new IllegalArgumentException("Asset must be non-null");
+                }
+                ConnectionResult result =
+                        mGoogleApiClient.blockingConnect(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                if (!result.isSuccess()) {
+                    return null;
+                }
+                // convert asset into a file descriptor and block until it's ready
+                InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                        mGoogleApiClient, asset).await().getInputStream();
+                mGoogleApiClient.disconnect();
+
+                if (assetInputStream == null) {
+                    Log.w("myTag", "Requested an unknown Asset.");
+                    return null;
+                }
+                // decode the stream into a bitmap
+                return BitmapFactory.decodeStream(assetInputStream);
+            }
         }
-        // decode the stream into a bitmap
-        return BitmapFactory.decodeStream(assetInputStream);
-    }
-/*
-    public String BitmapToString(Bitmap bitmap){
-        ByteArrayOutputStream baos=new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-        byte[] b=baos.toByteArray();
-        String encoded= Base64.encodeToString(b, Base64.DEFAULT);
-        return encoded;
-    }
-*/
+
         @Override
         public void onConnectionFailed(ConnectionResult result) {
             Log.d("myTag", "onConnectionFailed: " + result);
