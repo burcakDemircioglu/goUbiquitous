@@ -424,41 +424,18 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         Cursor cursor = context.getContentResolver().query(weatherUri, NOTIFY_WEATHER_PROJECTION, null, null, null);
         double high=0 ;  
         double low=0 ;
-        int iconId;
         Bitmap largeIcon;
         Resources resources = context.getResources();
         int artResourceId=0;
-        int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
-                : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-        int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
-                : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
 
         if (cursor.moveToFirst()) {
             int weatherId = cursor.getInt(INDEX_WEATHER_ID);
             high = cursor.getDouble(INDEX_MAX_TEMP);
             low = cursor.getDouble(INDEX_MIN_TEMP);
-            iconId = Utility.getIconResourceForWeatherCondition(weatherId);
             artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
-            String artUrl = Utility.getArtUrlForWeatherCondition(context, weatherId);
-            /*
-            try {
-                largeIcon = Glide.with(context)
-                        .load(artUrl)
-                        .asBitmap()
-                        .error(artResourceId)
-                        .fitCenter()
-                        .into(largeIconWidth, largeIconHeight).get();
-            } catch (InterruptedException | ExecutionException e) {
-                Log.e(LOG_TAG, "Error retrieving large icon from " + artUrl, e);
-                largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
-            }
-            */
-
         }
-        largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
 
+        largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
         Asset asset = createAssetFromBitmap(largeIcon);
 
         if(mGoogleApiClient.isConnected()) {
@@ -484,7 +461,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         }
         else{
             Log.e("mGoogleApiClient", "No connection to wearable available!");
-
         }
     }
 

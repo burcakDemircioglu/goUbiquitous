@@ -36,7 +36,6 @@ import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
-import android.util.Base64;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
@@ -216,6 +215,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
             protected void onPostExecute(Bitmap bitmap) {
                 if (bitmap != null) {
                     weatherIcon=bitmap;
+
                     invalidate();
                 }
             }
@@ -454,14 +454,8 @@ public class WatchFaceService extends CanvasWatchFaceService {
             invalidate();
         }
 
-        public Bitmap StringToBitmap(String encoded){
-            byte[] imageAsBytes = Base64.decode(encoded.getBytes(), Base64.DEFAULT);
-            Bitmap bitmap= BitmapFactory.decodeByteArray(imageAsBytes, 0, imageAsBytes.length);
-            return bitmap;
-        }
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-
 
             IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
             Intent batteryStatus =  getApplicationContext().registerReceiver(null, iFilter);
@@ -486,6 +480,9 @@ public class WatchFaceService extends CanvasWatchFaceService {
             String highString=high+(char) 0x00B0 ;
             String lowString=low+(char) 0x00B0 ;
             String battery=Integer.toString(batteryLevel)+"%";
+            //scale bitmap
+            int scale = 70;
+            weatherIcon = Bitmap.createScaledBitmap(weatherIcon, scale, scale, true);
             if (!mAmbient) {
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffset, mTextPaint);
                 canvas.drawText(mdateString, bounds.centerX() - (mDatePaint.measureText(mdateString)) / 2, mYOffset + 50, mDatePaint);
@@ -494,16 +491,12 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mDatePaint);
                 canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+15, mYOffset + 150, mDatePaint);
                 canvas.drawText(battery, bounds.centerX() - mbatteryPaint.measureText(battery) / 2, mYOffset / 3, mbatteryPaint);
-                canvas.drawBitmap(weatherIcon, bounds.centerX() - (mTextPaint.measureText(text)) / 2-10, mYOffset + 90, mDatePaint);
+                canvas.drawBitmap(weatherIcon, bounds.centerX() - (mTextPaint.measureText(text)) / 2-10, mYOffset + 100, mDatePaint);
             }
             else{
                 canvas.drawText(text, bounds.centerX() - (mTextPaint.measureText(text)) / 2, mYOffsetAmbient, mTextPaint);
                 canvas.drawText(textDate, bounds.centerX() - (mDatePaint.measureText(textDate)) / 2, mYOffsetAmbient + 70, mDateAmbientPaint);
             }
-
-
-
-
         }
 
         /**
@@ -537,8 +530,5 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
             }
         }
-
-
-
     }
 }
