@@ -42,11 +42,15 @@ import android.view.WindowInsets;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.PendingResult;
+import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.data.FreezableUtils;
 import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
@@ -178,6 +182,27 @@ public class WatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onConnected(Bundle bundle) {
             Wearable.DataApi.addListener(mGoogleApiClient, this);
+            PendingResult<DataItemBuffer> pending;
+            pending =Wearable.DataApi.getDataItems(mGoogleApiClient);
+            pending.setResultCallback(new ResultCallback<DataItemBuffer>(){
+                @Override
+                public void onResult(DataItemBuffer dataItems) {
+                    for(DataItem item : dataItems){
+                        DataMap map=DataMapItem.fromDataItem(item).getDataMap();
+                        String path = item.getUri().getPath();
+                        if(path.equals("/CONFIG")) {
+                            high = Integer.toString((int)map.getDouble("high"));
+                            low = Integer.toString((int) map.getDouble("low"));
+                            Asset asset = map.getAsset("weatherImage");
+                            BitmapWorkerTask task = new BitmapWorkerTask();
+                            task.execute(asset);
+
+                            Log.e("myTag", "Data initially retrieved!: "+high+" "+low);
+                            invalidate();
+                        }
+                    }
+                }
+            });
         }
 
         @Override
