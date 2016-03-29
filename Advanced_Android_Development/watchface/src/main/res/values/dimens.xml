@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <dimen name="digital_text_size">40dp</dimen>
-    <dimen name="digital_text_size_round">45dp</dimen>
-    <dimen name="digital_text_size_2">20dp</dimen>
-    <dimen name="digital_text_size_round_2">20dp</dimen>
+    <dimen name="digital_text_size">35dp</dimen>
+    <dimen name="digital_text_size_round">40dp</dimen>
+    <dimen name="digital_text_size_2">10dp</dimen>
+    <dimen name="digital_text_size_round_2">15dp</dimen>
     <dimen name="digital_text_size_3">5dp</dimen>
     <dimen name="digital_text_size_round_3">10dp</dimen>
+    <dimen name="digital_text_size_4">20dp</dimen>
+    <dimen name="digital_text_size_round_4">25dp</dimen>
     <dimen name="digital_x_offset">15dp</dimen>
     <dimen name="digital_x_offset_round">35dp</dimen>
-    <dimen name="digital_y_offset">80dp</dimen>
-    <dimen name="digital_y_offset_ambient">90dp</dimen>
+    <dimen name="digital_y_offset">70dp</dimen>
+    <dimen name="digital_y_offset_ambient">80dp</dimen>
 
 </resources>
