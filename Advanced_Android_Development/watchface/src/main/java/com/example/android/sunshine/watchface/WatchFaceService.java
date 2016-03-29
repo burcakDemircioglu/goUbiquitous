@@ -111,6 +111,10 @@ public class WatchFaceService extends CanvasWatchFaceService {
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
+        Paint mHourPaint;
+        Paint mMinutePaint;
+        Paint mHighPaint;
+        Paint mLowPaint;
         Paint mTextPaint;
         Paint mDatePaint;
         Paint mDateAmbientPaint;
@@ -168,6 +172,9 @@ public class WatchFaceService extends CanvasWatchFaceService {
             mTextPaint = new Paint();
             mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
             //mTextPaint.setStrokeWidth(5.0f);
+            mHighPaint = new Paint();
+            mHighPaint = createTextPaint(resources.getColor(R.color.watchface_date));
+            mHighPaint.setFakeBoldText(true);
             mDatePaint = new Paint();
             mDateAmbientPaint = new Paint();
             mbatteryPaint = new Paint();
@@ -182,6 +189,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onConnected(Bundle bundle) {
             Wearable.DataApi.addListener(mGoogleApiClient, this);
+
             PendingResult<DataItemBuffer> pending;
             pending =Wearable.DataApi.getDataItems(mGoogleApiClient);
             pending.setResultCallback(new ResultCallback<DataItemBuffer>(){
@@ -203,6 +211,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
                     }
                 }
             });
+
         }
 
         @Override
@@ -256,7 +265,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 // convert asset into a file descriptor and block until it's ready
                 InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
                         mGoogleApiClient, asset).await().getInputStream();
-                mGoogleApiClient.disconnect();
+                //mGoogleApiClient.disconnect();
 
                 if (assetInputStream == null) {
                     Log.w("myTag", "Requested an unknown Asset.");
@@ -378,8 +387,8 @@ public class WatchFaceService extends CanvasWatchFaceService {
 
             } else {
                 unregisterReceiver();
-                Wearable.DataApi.removeListener(mGoogleApiClient, this);
-                mGoogleApiClient.disconnect();
+                //Wearable.DataApi.removeListener(mGoogleApiClient, this);
+                //mGoogleApiClient.disconnect();
             }
 
             // Whether the timer should be running depends on whether we're visible (as well as
@@ -420,6 +429,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
             float textSize3 = resources.getDimension(isRound
                     ? R.dimen.digital_text_size_round_3 : R.dimen.digital_text_size_3);
             mTextPaint.setTextSize(textSize);
+            mHighPaint.setTextSize(textSize2);
             mDatePaint.setTextSize(textSize2);
             mDateAmbientPaint.setTextSize(textSize2);
             mbatteryPaint.setTextSize(textSize3);
@@ -513,7 +523,7 @@ public class WatchFaceService extends CanvasWatchFaceService {
                 canvas.drawText(mdateString, bounds.centerX() - (mDatePaint.measureText(mdateString)) / 2, mYOffset + 50, mDatePaint);
                 canvas.drawLine(bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90,
                         mTextPaint.measureText(text) / 2 + bounds.centerX() - (mTextPaint.measureText(text)) / 4, mYOffset + 90, mDatePaint);
-                canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mDatePaint);
+                canvas.drawText(highString, bounds.centerX(), mYOffset + 150, mHighPaint);
                 canvas.drawText(lowString,bounds.centerX() + mDatePaint.measureText(highString)+15, mYOffset + 150, mDatePaint);
                 canvas.drawText(battery, bounds.centerX() - mbatteryPaint.measureText(battery) / 2, mYOffset / 3, mbatteryPaint);
                 canvas.drawBitmap(weatherIcon, bounds.centerX() - (mTextPaint.measureText(text)) / 2-10, mYOffset + 100, mDatePaint);

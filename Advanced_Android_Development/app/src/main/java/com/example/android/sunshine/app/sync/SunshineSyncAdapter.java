@@ -437,7 +437,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
         largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
         Asset asset = createAssetFromBitmap(largeIcon);
-
+        Log.v("myTag", "data: "+Double.toString(high)+" "+Double.toString(low));
         if(mGoogleApiClient.isConnected()) {
             Log.d("mGoogleApiClient", "Connection to wearable exist!");
             PutDataMapRequest putRequest = PutDataMapRequest.create("/CONFIG");
@@ -454,7 +454,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                             if (!dataItemResult.getStatus().isSuccess()) {
                                 Log.v("mGoogleApiClient", "data could not be sent");
                             } else {
-                                Log.v("mGoogleApiClient", "data sent");
+                                Log.v("myTag", "data sent");
                             }
                         }
                     });
